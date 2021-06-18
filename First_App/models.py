@@ -16,9 +16,10 @@ class Attendance(models.Model):
 
 class Lesson(models.Model):
     name=models.CharField(max_length=100)
-    date=models.DateField(blank=True,null=True)
-    def __str__(self):
-        return '%s %s' % (self.name, self.date)
+    key = models.CharField(max_length=100, null=True, blank=True)
+    date=models.DateField(auto_now=False,auto_now_add=False)
+
+
 
 class Course(models.Model):
     code = models.CharField(max_length=100,unique=True)
@@ -37,7 +38,7 @@ class Course(models.Model):
 
 class User(models.Model):
     user_name=models.CharField(max_length=100,null=True,blank=True)
-    password=models.CharField(max_length=100,null=True,blank=True)
+    password=models.CharField(max_length=100)
     code_user=models.CharField(max_length=100)
     name=models.CharField(max_length=200)
     email=models.EmailField(max_length=100)
@@ -45,6 +46,7 @@ class User(models.Model):
     user_type=models.CharField(max_length=10)
     courses=models.ManyToManyField(Course,blank=True)
     url_avatar=models.CharField(max_length=100,null=True,blank=True)
+    user_id_card=models.CharField(max_length=100,null=True,blank=True)
 
 
 

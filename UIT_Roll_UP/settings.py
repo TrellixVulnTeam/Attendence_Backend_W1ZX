@@ -15,7 +15,6 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
@@ -23,26 +22,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'i9iksb1*4+=_br!vy3(qa9g41^73v42v-%)(zgx(ip+$&o0gd$'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ["192.168.1.108"]
-
+ALLOWED_HOSTS = ["0.0.0.0", '.herokuapp.com', "10.45.125.85", "127.0.0.1", "192.168.1.5", "192.168.1.102",
+                 "192.168.1.13"]
 
 # Application definition
 
 INSTALLED_APPS = [
+    # To disable Django’s static file handling and allow WhiteNoise to take over add ‘nostatic’ to the top of your ‘INSTALLED_APPS’ list.
+    'whitenoise.runserver_nostatic',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # diagrams generators
+    'django_extensions',
     'First_App',
-    'rest_framework'
+    'rest_framework',
+
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -71,17 +76,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'UIT_Roll_UP.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/3.1/ref/settings/#databases
-
+import dj_database_url
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+# heroku with link deploy tutorial(https://www.geeksforgeeks.org/how-to-deploy-django-application-on-heroku/)
+WHITENOISE_USE_FINDERS = True
+prod_db  =  dj_database_url.config(conn_max_age=500)
+DATABASES['default'].update(prod_db)
 
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Password validation
 # https://docs.djangoproject.com/en/3.1/ref/settings/#auth-password-validators
@@ -101,7 +111,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/
 
@@ -115,7 +124,6 @@ USE_L10N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
@@ -123,3 +131,14 @@ STATIC_URL = '/static/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+
+# setting for email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# SENDGRID_API_KEY = os.getenv('khanhanlun2005')
+EMAIL_HOST = 'smtp.gmail.com'
+# password emial Khanhanlun2005
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'attendance.uit@gmail.com'
+EMAIL_HOST_PASSWORD = 'yugrlsfwpcyrevvo'
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False

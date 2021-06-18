@@ -1,5 +1,6 @@
 import base64
 import os
+import threading
 from os import curdir, sep
 from PIL import Image
 from django.http import Http404
@@ -8,14 +9,24 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import generics
+import datetime
+# hashpassword
+import hashlib
 from .serializer import courseSerializer, attendSerializer, lessonSerializer, request_attend, join_course, \
     info_new_account, request_login, userSerializer, request_create_lesson, \
     request_new_course, request_put_attend, request_getinfo_alesson, info_lesson, request_getinfo_acourse, \
-    request_report_attend, request_get_information_account, request_change_information_roll_up, request_post_avatar
+    request_report_attend, request_get_information_account, request_change_information_roll_up, \
+    request_post_avatar,request_rfid,request_change_password,\
+    request_forgot_password,request_register_rfid,\
+    request_new_lesson,request_attendance_mac_address
 
 from .models import Course, Lesson, Attendance, User
 
+from .utils import create_socket,server
 
+# create_socket()
+# add
+from django.core.mail import send_mail
 # Create your views here.
 class get_courses(APIView):
     def get(self, request):
@@ -61,13 +72,34 @@ class register(APIView):
         email = mdata.data['email']
         major = mdata.data['major']
         user_type = mdata.data['user_type']
+        avatar=mdata.data['avatar']
+        # decode Base64 from string to image
+        img = base64.b64decode(avatar)
+        # ulr to save image
+        path = "media/avatar/"
+        filename = path + str(code_user) + ".jpg";
+        # save image to url
+        with open(filename, 'wb') as f:
+            f.write(img)
+        f.close()
+        # user.url_avatar = "/" + filename
+        # user.save()
         # tài khoản đã tồn tại chưa
         user = User.objects.filter(user_name=user_name).first()
         if (user != None):
             return Response(response_False, status=status.HTTP_200_OK)
+        # hash password for account
+        md5 = hashlib.md5(password.encode())
+        encryptedPassword=md5.hexdigest()
         # create new account
-        User.objects.create(user_name=user_name, password=password, code_user=code_user, name=name, email=email,
-                            major=major, user_type=user_type)
+        User.objects.create(user_name=user_name, password=encryptedPassword, code_user=code_user, name=name, email=email,
+                            major=major, user_type=user_type,url_avatar="/" + filename)
+        title_mail='Confirm your account information'
+        message_mail='Congratulations on successful registration of the attendance application account'+'\n'\
+                     +'username:'+user_name+'\n'+'password:'+password
+        to_email=email
+        send_mail(title_mail,message_mail,'attendance.uit@gmail.com',[to_email],fail_silently=False)
+
         return Response(response_True, status=status.HTTP_200_OK)
 
 
@@ -75,6 +107,7 @@ class register(APIView):
 class login(APIView):
     def post(self, request):
         # notification for client
+
 
         response_False = {
             "ok": False,
@@ -85,7 +118,11 @@ class login(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         user_name = mdata.data['user_name']
         password = mdata.data['password']
-        user = User.objects.filter(user_name=user_name, password=password).first()
+        # hash password
+        md5 = hashlib.md5(password.encode())
+        encryptedPassword = md5.hexdigest()
+        user = User.objects.filter(user_name=user_name, password=encryptedPassword).first()
+
         if (user == None):
             return Response(response_False, status=status.HTTP_404_NOT_FOUND)
         response = courseSerializer(user.courses.all(), many=True)
@@ -94,6 +131,12 @@ class login(APIView):
             "user_type": user.user_type,
             "courses": response.data
         }
+        # start socket server
+        if(user.user_type=="lecturer"):
+            tmp = threading.Thread(target=server, args=())
+            tmp.setDaemon(True)
+            tmp.start()
+
         return Response(response_True, status=status.HTTP_200_OK)
 
 
@@ -208,7 +251,7 @@ class create_lesson(APIView):
     def post(self, request):
         mdata = request_create_lesson(data=request.data)
         if not mdata.is_valid():
-            return Response('ầ', status=status.HTTP_400_BAD_REQUEST)
+            return Response( status=status.HTTP_400_BAD_REQUEST)
         code_user = mdata.data['code_user']
         code_course = mdata.data['code_course']
         date_lesson = mdata.data['date_lesson']
@@ -233,7 +276,77 @@ class create_lesson(APIView):
             return Response(response_False, status=status.HTTP_200_OK)
         return Response(response_False, status=status.HTTP_404_NOT_FOUND)
 
+# create new lesson with mac address( lap trinh ung dung mang)
 
+class create_lesson_mac_address(APIView):
+    def post(self, request):
+        mdata =request_new_lesson (data=request.data)
+        if not mdata.is_valid():
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        code_user = mdata.data['code_user']
+        code_course = mdata.data['code_course']
+        date_lesson = mdata.data['date_lesson']
+        name_lesson = mdata.data['name_lesson']
+        key=mdata.data['key']
+        response_True = {
+            "ok": True,
+            "massage": "Thành công"
+        }
+        response_False = {
+            "ok": False,
+            "massage": "Thất bại"
+        }
+        user = User.objects.filter(code_user=code_user).first()
+        if (user.user_type == 'lecturer'):
+            print(user.user_type)
+            course = Course.objects.filter(code=code_course).first()
+            date = course.lessons.filter(date=date_lesson).first()
+
+            if (date == None):
+                course.lessons.create(name=name_lesson,key=key, date=date_lesson)
+                return Response(response_True, status=status.HTTP_200_OK)
+        else:
+            return Response(response_False, status=status.HTTP_200_OK)
+        return Response(response_False, status=status.HTTP_200_OK)
+
+
+#     attandance for lesson with mac address
+class attendance_mac_address(APIView):
+    def post(self,request):
+        response_True = {
+            "ok": True,
+            "massage": "Thành công"
+        }
+        response_False = {
+            "ok": False,
+            "massage": "Thất bại"
+        }
+        mdata=request_attendance_mac_address(data=request.data)
+        if not mdata.is_valid():
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        code_user = mdata.data['code_user']
+        code_course = mdata.data['code_course']
+        date_lesson = mdata.data['date_lesson']
+
+        key=mdata.data['key']
+        course=Course.objects.filter(code=code_course).first()
+        lesson=course.lessons.filter(date=date_lesson).first()
+        user=User.objects.filter(code_user=code_user).first()
+        if(lesson==None):
+            return Response(response_False,status=status.HTTP_200_OK)
+        if(lesson.key==key):
+            attendance=Attendance.objects.filter(code_course=code_course,
+                                                 code_student=code_user,
+                                                 date=date_lesson,check_inf=True).first()
+            if(attendance!=None):
+                return Response(response_False, status=status.HTTP_200_OK)
+            Attendance.objects.create(code_course=code_course,
+                                      code_student=code_user,
+                                      date=date_lesson,
+                                      url_image=user.url_avatar,
+                                      check_inf=True)
+            return Response(response_True,status=status.HTTP_200_OK)
+        return Response(response_False,status=status.HTTP_200_OK)
 # create a new course
 class create_new_course(APIView):
     def post(self, request):
@@ -366,6 +479,139 @@ class change_avatar_account(APIView):
         user.save()
 
 
+        return Response(response_True,status=status.HTTP_200_OK)
+
+# attendance with rfid
+class check_id_rfid(APIView):
+    def post(self,request):
+        mdata=request_rfid(data=request.data)
+        if not mdata.is_valid():
+            return Response("sai dữ liêu", status=status.HTTP_404_NOT_FOUND)
+        id_card=mdata.data["id_card"]
+        # get user have id = idcard
+        user=User.objects.filter(user_id_card=id_card).first()
+        response_False = {
+            "ok": False,
+            "massage": "Thẻ chưa đăng ký"
+        }
+        if(user==None):
+            return Response(response_False,status=status.HTTP_200_OK)
+        course=user.courses.filter(code=mdata.data["course_code"]).first()
+        response_None = {
+            "ok": False,
+            "massage": "Sinh viên chưa tham gia lớp học"
+        }
+        if (course == None):
+            return Response(response_None, status=status.HTTP_200_OK)
+        attendance=Attendance.objects.filter(code_course=mdata.data["course_code"],
+                                             code_student=user.code_user,
+                                             date=datetime.date.today()
+                                             ).first()
+        response_Done = {
+            "ok": False,
+            "massage": "Đã điểm danh rồi"
+        }
+        if(attendance!=None):
+            return Response(response_Done, status=status.HTTP_200_OK)
+
+        Attendance.objects.create(code_course=mdata.data["course_code"],
+                                  code_student=user.code_user,
+                                  date=datetime.date.today(),
+                                  check_inf=True,
+                                  url_image="/media/avatar/"+user.code_user+".jpg"
+                                  )
+        response_True = {
+            "ok": True,
+            "massage": "Thành công",
+            "name" :user.name,
+            "codestudent":user.code_user
+        }
+        return Response(response_True,status=status.HTTP_200_OK)
+# register RFID card from RFID
+class register_card_rfid(APIView):
+    def post(self,request):
+        response_True = {
+            "ok": True,
+            "massage": "Thành công"
+        }
+        response_False = {
+            "ok": False,
+            "massage": "Thất bại"
+        }
+        mdata=request_register_rfid(data=request.data)
+        if not mdata.is_valid():
+            return Response("sai dữ liêu", status=status.HTTP_404_NOT_FOUND)
+        user_check=User.objects.filter(user_id_card=mdata.data["id_card"]).first()
+        if(user_check!=None):
+            return Response(response_False,status=status.HTTP_200_OK)
+        user=User.objects.filter(code_user=mdata.data["student_code"]).first()
+        if(user==None):
+            return Response(response_False, status=status.HTTP_200_OK)
+        user.user_id_card=mdata.data["id_card"]
+        user.save()
+
+        return Response(response_True,status=status.HTTP_200_OK)
+# change password for account
+class change_password(APIView):
+    def post(self,request):
+        response_True = {
+            "ok": True,
+            "massage": "Thành công"
+        }
+        response_False = {
+            "ok": False,
+            "massage": "Thất bại"
+        }
+        mdata=request_change_password(data=request.data)
+        if not mdata.is_valid():
+            return Response("sai dữ liêu", status=status.HTTP_404_NOT_FOUND)
+        username = mdata.data['user_name']
+        old_password = mdata.data['old_password']
+        new_password = mdata.data['new_password']
+        # hash password
+        md5_old_password = hashlib.md5(old_password.encode())
+        encryptedOldPassword = md5_old_password.hexdigest()
+        # hash password
+        md5_new_password = hashlib.md5(new_password.encode())
+        encryptedNewPassword = md5_new_password.hexdigest()
+        user=User.objects.filter(user_name=username,password=encryptedOldPassword).first()
+        if(user==None):
+            return Response(response_False,status=status.HTTP_200_OK)
+        user.password=encryptedNewPassword
+        user.save()
+        return Response(response_True,status=status.HTTP_200_OK)
+# change password for account when user forgot password
+class forgot_password(APIView):
+    def post(self,request):
+        response_True = {
+            "ok": True,
+            "massage": "Thành công"
+        }
+        response_False = {
+            "ok": False,
+            "massage": "Thất bại"
+        }
+        mdata=request_forgot_password(data=request.data)
+        if not mdata.is_valid():
+            return Response("sai dữ liêu", status=status.HTTP_404_NOT_FOUND)
+        username = mdata.data['user_name']
+
+        new_password = mdata.data['new_password']
+        # hash password
+        md5 = hashlib.md5(new_password.encode())
+        encryptedPassword = md5.hexdigest()
+        user=User.objects.filter(user_name=username).first()
+
+        if(user==None):
+            return Response(response_False,status=status.HTTP_200_OK)
+        user.password=encryptedPassword
+        user.save()
+        title_mail = 'Confirm your account information'
+        message_mail = 'Congratulations on your successful account recovery.' + '\n' \
+                       +"Your new account information:"+ '\n'\
+                       + 'username:' + username + '\n' + 'password:' + new_password
+        to_email = user.email
+        send_mail(title_mail, message_mail, 'attendance.uit@gmail.com', [to_email], fail_silently=False)
         return Response(response_True,status=status.HTTP_200_OK)
 
 # class UserList(generics.ListCreateAPIView):

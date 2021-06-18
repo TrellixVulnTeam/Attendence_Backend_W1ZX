@@ -71,6 +71,7 @@ class info_new_account(serializers.Serializer):
     email = serializers.EmailField(max_length=100)
     major = serializers.CharField(max_length=100)
     user_type = serializers.CharField(max_length=10)
+    avatar=serializers.CharField(min_length=0,allow_null=True,allow_blank=True)
 #request login
 class request_login(serializers.Serializer):
     user_name = serializers.CharField(max_length=100)
@@ -119,3 +120,39 @@ class request_change_information_roll_up(serializers.Serializer):
     report = serializers.BooleanField()
     check_inf = serializers.BooleanField()
     note = serializers.CharField(max_length=1000000,allow_null=True,allow_blank=True)
+
+# request attandence from RFID to server
+class request_rfid(serializers.Serializer):
+    id_card=serializers.CharField(max_length=100)
+    course_code=serializers.CharField(max_length=100)
+# request register from RFID to server
+class request_register_rfid(serializers.Serializer):
+    id_card=serializers.CharField(max_length=100)
+    student_code=serializers.CharField(max_length=100)
+
+
+# request to change password
+class request_change_password(serializers.Serializer):
+    user_name=serializers.CharField(max_length=100)
+    old_password=serializers.CharField(max_length=100)
+    new_password=serializers.CharField(max_length=100)
+
+# request forgot password
+class request_forgot_password(serializers.Serializer):
+    user_name=serializers.CharField(max_length=100)
+    new_password=serializers.CharField(max_length=100)
+# request create a lesson with mac address (lap trinh ung dung mang)
+class request_new_lesson(serializers.Serializer):
+    code_course = serializers.CharField(max_length=100)
+    code_user = serializers.CharField(max_length=100)
+    date_lesson = serializers.DateField()
+    name_lesson = serializers.CharField(max_length=100)
+    # key is mac address
+    key=serializers.CharField(max_length=100)
+# request attendance with mac address (lap trinh ung dung mang)
+class request_attendance_mac_address(serializers.Serializer):
+    code_course = serializers.CharField(max_length=100)
+    code_user = serializers.CharField(max_length=100)
+    date_lesson = serializers.DateField()
+    # key is mac address
+    key = serializers.CharField(max_length=100)
