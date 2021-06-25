@@ -17,7 +17,7 @@ from .models import Course, Lesson, Attendance, User
 width = 320
 height = 240
 
-local_ip = "192.168.1.5"
+local_ip = "0.0.0.0"
 local_port = 3456
 
 
